@@ -1,12 +1,12 @@
 {
-    "validation_timestamp": "2026-07-06 09:09:16",
+    "validation_timestamp": "2026-07-06 10:20:14",
     "total_records_ingested": 593,
     "failures": {
         "missing_required_fields": 0,
         "invalid_salaries": 0,
-        "invalid_dates": 10,
+        "invalid_dates": 9,
         "duplicate_records": 0
     },
-    "records_passed": 583,
-    "records_failed": 10
+    "records_passed": 584,
+    "records_failed": 9
 }

@@ -17,17 +17,21 @@ def load_data_to_db(df: pd.DataFrame) -> None:
     
     # 1. Pre-populate / Seed Skills table to make sure IDs exist
     predefined_skills = ["Python", "SQL", "Power BI", "Tableau", "Excel", "AWS", "Azure", "Spark", "Docker"]
-    skill_map = {} # Maps skill name string -> Skill ORM object
+    skill_map = {} # Maps skill name string (lowercase) -> Skill ORM object
     
     try:
+        # Load all existing skills to memory case-insensitively
+        existing_skills = {s.skill_name.lower().strip(): s for s in session.query(Skill).all()}
         for skill_name in predefined_skills:
-            # Query if skill exists, else create
-            db_skill = session.query(Skill).filter(Skill.skill_name == skill_name).first()
-            if not db_skill:
+            skill_key = skill_name.lower().strip()
+            if skill_key in existing_skills:
+                skill_map[skill_key] = existing_skills[skill_key]
+            else:
                 db_skill = Skill(skill_name=skill_name)
                 session.add(db_skill)
                 session.flush() # Flush to populate ID
-            skill_map[skill_name] = db_skill
+                skill_map[skill_key] = db_skill
+                existing_skills[skill_key] = db_skill
             
         session.commit()
         logger.info("Skills master records initialized.")
@@ -36,52 +40,59 @@ def load_data_to_db(df: pd.DataFrame) -> None:
         logger.error(f"Error seeding skills: {e}")
         raise e
 
-    # 2. Insert Companies and Jobs
-    loaded_companies = 0
-    loaded_jobs = 0
-    loaded_job_skills = 0
-    
-    # Local cache to prevent redundant database queries for companies during loop execution
-    company_cache = {}
-    
+    # 2. Pre-fetch Companies, Jobs, and Links into memory to avoid network round-trips (case-insensitively)
     try:
+        logger.info("Pre-fetching database indexes into memory caches...")
+        # Load existing companies case-insensitively
+        company_cache = {c.company_name.lower().strip(): c.company_id for c in session.query(Company).all()}
+        
+        # Load existing jobs case-insensitively (unique compound key: title, company_id, location, source)
+        job_cache = {}
+        for j in session.query(Job).all():
+            key = (j.title.lower().strip(), j.company_id, (j.location or "").lower().strip(), j.source.lower().strip())
+            job_cache[key] = j
+            
+        # Load existing Job-Skill links
+        job_skill_links = {(js.job_id, js.skill_id) for js in session.query(JobSkill).all()}
+        
+        loaded_companies = 0
+        loaded_jobs = 0
+        loaded_job_skills = 0
+        
+        logger.info("Starting batch processing loop...")
         for _, row in df.iterrows():
             company_name = str(row["company_name"]).strip()
             industry = row["industry"]
             location = row["location"]
             
-            # Resolve Company
+            # Resolve Company (case-insensitively)
             company_id = None
-            if company_name in company_cache:
-                company_id = company_cache[company_name]
+            company_key = company_name.lower().strip()
+            if company_key in company_cache:
+                company_id = company_cache[company_key]
             else:
-                db_company = session.query(Company).filter(Company.company_name == company_name).first()
-                if not db_company:
-                    db_company = Company(
-                        company_name=company_name,
-                        industry=industry,
-                        location=location
-                    )
-                    session.add(db_company)
-                    session.flush()
-                    loaded_companies += 1
+                db_company = Company(
+                    company_name=company_name,
+                    industry=industry,
+                    location=location
+                )
+                session.add(db_company)
+                session.flush()
                 company_id = db_company.company_id
-                company_cache[company_name] = company_id
+                company_cache[company_key] = company_id
+                loaded_companies += 1
                 
-            # Check for existing job entry (avoid duplicates)
+            # Check for existing job entry (case-insensitively)
             title = row["title"]
             source = row["source"]
             posted_date = row["posted_date"]
             
-            db_job = session.query(Job).filter(
-                Job.title == title,
-                Job.company_id == company_id,
-                Job.location == location,
-                Job.source == source
-            ).first()
+            job_key = (title.lower().strip(), company_id, (location or "").lower().strip(), source.lower().strip())
             
-            if db_job:
-                # Job exists; skip or update. We will update attributes in case they changed
+            db_job = None
+            if job_key in job_cache:
+                db_job = job_cache[job_key]
+                # Update attributes
                 db_job.salary_min = row["salary_min"]
                 db_job.salary_max = row["salary_max"]
                 db_job.experience_level = row["experience_level"]
@@ -91,7 +102,6 @@ def load_data_to_db(df: pd.DataFrame) -> None:
                 db_job.posted_date = posted_date
                 session.flush()
             else:
-                # Create new Job record
                 db_job = Job(
                     title=title,
                     company_id=company_id,
@@ -107,27 +117,25 @@ def load_data_to_db(df: pd.DataFrame) -> None:
                 )
                 session.add(db_job)
                 session.flush()
+                job_cache[job_key] = db_job
                 loaded_jobs += 1
                 
-            # Resolve Job-Skill mappings (M2M)
+            # Resolve Job-Skill links
             extracted_skills = row["extracted_skills"]
             if isinstance(extracted_skills, list):
                 for skill_name in extracted_skills:
-                    if skill_name in skill_map:
-                        skill_obj = skill_map[skill_name]
+                    skill_key = skill_name.lower().strip()
+                    if skill_key in skill_map:
+                        skill_obj = skill_map[skill_key]
+                        link_key = (db_job.job_id, skill_obj.skill_id)
                         
-                        # Check if link exists
-                        db_link = session.query(JobSkill).filter(
-                            JobSkill.job_id == db_job.job_id,
-                            JobSkill.skill_id == skill_obj.skill_id
-                        ).first()
-                        
-                        if not db_link:
+                        if link_key not in job_skill_links:
                             db_link = JobSkill(
                                 job_id=db_job.job_id,
                                 skill_id=skill_obj.skill_id
                             )
                             session.add(db_link)
+                            job_skill_links.add(link_key)
                             loaded_job_skills += 1
                             
         # Final commit for the entire transaction batch

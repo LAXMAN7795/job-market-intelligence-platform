@@ -1,6 +1,6 @@
 # Market Intelligence Report
 
-**Generated on:** 2026-07-06 14:39:18  
+**Generated on:** 2026-07-06 15:59:10  
 **Data Scope:** Ingested jobs from The Muse API & Kaggle Historical Dataset  
 
 ---
