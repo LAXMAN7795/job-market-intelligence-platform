@@ -145,6 +145,13 @@ inject_custom_css()
 st.markdown("<h1 class='main-header'>Market Intelligence Platform</h1>", unsafe_allow_html=True)
 st.markdown("<div style='height: 5px; margin-bottom: 20px;'></div>", unsafe_allow_html=True)
 
+# Initialize database tables on startup
+from database.postgres import init_db
+try:
+    init_db()
+except Exception as e:
+    st.error(f"⚠️ Database connection/initialization failed: {e}")
+
 # Import sub-dashboards
 from dashboard.executive_dashboard import show_executive_dashboard
 from dashboard.hiring_dashboard import show_hiring_dashboard

@@ -15,6 +15,8 @@ logger = logging.getLogger(__name__)
 
 # Fetch database URL, defaulting to local SQLite if not configured
 DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///data/job_market.db")
+if DATABASE_URL.startswith("postgres://"):
+    DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
 
 # Automatically create data directory for SQLite if needed
 if DATABASE_URL.startswith("sqlite:///"):
