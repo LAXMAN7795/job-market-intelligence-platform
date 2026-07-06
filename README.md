@@ -1,6 +1,8 @@
 # Job Market Intelligence Platform
 
-A complete end-to-end Data Engineering and Analytics platform that aggregates, cleanses, validates, and analyzes job market data from free public sources. The platform transforms raw listings into actionable insights, persists them to a relational database, and renders interactive, HSL-tailored analytics dashboards suitable for portfolio display.
+**Live Deployment App:** [job-market-intelligence-platform.streamlit.app](https://job-market-intelligence-platform-nexj3kyn9kgqc99ddjrjqj.streamlit.app/)
+
+A complete end-to-end Data Engineering and Analytics platform that aggregates, cleanses, validates, and analyzes job market data from free public sources. The platform transforms raw listings into actionable insights, persists them to a relational database (PostgreSQL/SQLite), and renders interactive, HSL-tailored analytics dashboards suitable for portfolio display.
 
 ---
 
@@ -69,8 +71,9 @@ job-market-intelligence-platform/
 2. **Quality Assurance**: Automated verification checking for mandatory fields, valid dates, logical salary bounds, and duplicate listings. Saves outputs to `data/processed/validation_report.json`.
 3. **Feature Engineering**: Standardizes experiences and remote categories, extracts key technologies (Python, SQL, AWS, Azure, Power BI, etc.) from descriptions via regex boundaries, and places salaries into LPA buckets.
 4. **Relational Schema**: Implements SQLAlchemy ORM mapping parent company listings, child jobs, and skills via a many-to-many lookup table.
-5. **Interactive Filtering**: Streamlit UI filters dashboards dynamically (Location, Experience, Role, Industry) using database-level queries.
-6. **Geographic Mapping**: Leverages local coordinates to plot job openings on an interactive scatter map.
+5. **Performance Optimization (In-Memory Preloading)**: Pre-caches existing database indexes (companies, jobs, and links) prior to executing batch loading, reducing PostgreSQL SELECT queries from **5,000+ to only 4**. This speeds up loading over high-latency cloud networks (e.g. Neon DB) from **~25 minutes to just 50 seconds**.
+6. **Interactive Filtering**: Streamlit UI filters dashboards dynamically (Location, Experience, Role, Industry) using database-level queries.
+7. **Geographic Mapping**: Leverages local coordinates to plot job openings on an interactive scatter map.
 
 ---
 
